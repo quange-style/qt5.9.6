@@ -1,0 +1,1 @@
+D:/work/HI3531D/qt5.9.6-src/coin/provisioning/common/macos/sha1sum-compatibility.sh
