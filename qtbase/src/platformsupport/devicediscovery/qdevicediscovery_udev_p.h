@@ -70,6 +70,7 @@ private slots:
 
 private:
     bool checkDeviceType(struct udev_device *dev);
+    bool checkDeviceType_static(const QString &device);
 
     void startWatching();
     void stopWatching();
