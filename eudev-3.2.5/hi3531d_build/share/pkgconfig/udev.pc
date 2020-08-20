@@ -1,0 +1,6 @@
+Name: udev
+Description: eudev
+Version: 220
+prefix=/home/quange/work/HI3531D/Hi3531DV100_SDK_V1.0.4.0/HI3531D_SRC/app/opensource/eudev-3.2.5/hi3531d_build
+exec_prefix=${prefix}
+udevdir=${exec_prefix}/lib/udev

@@ -1,0 +1,33 @@
+MurmurHash2.lo: MurmurHash2.c \
+ /opt/hisi-linux/x86-arm/arm-hisiv600-linux/target/usr/include/stdc-predef.h \
+ ../../config.h MurmurHash2.h \
+ /opt/hisi-linux/x86-arm/arm-hisiv600-linux/lib/gcc/arm-hisiv600-linux-gnueabi/4.9.4/include/stdint.h \
+ /opt/hisi-linux/x86-arm/arm-hisiv600-linux/target/usr/include/stdint.h \
+ /opt/hisi-linux/x86-arm/arm-hisiv600-linux/target/usr/include/features.h \
+ /opt/hisi-linux/x86-arm/arm-hisiv600-linux/target/usr/include/sys/cdefs.h \
+ /opt/hisi-linux/x86-arm/arm-hisiv600-linux/target/usr/include/bits/wordsize.h \
+ /opt/hisi-linux/x86-arm/arm-hisiv600-linux/target/usr/include/gnu/stubs.h \
+ /opt/hisi-linux/x86-arm/arm-hisiv600-linux/target/usr/include/gnu/stubs-soft.h \
+ /opt/hisi-linux/x86-arm/arm-hisiv600-linux/target/usr/include/bits/wchar.h
+
+/opt/hisi-linux/x86-arm/arm-hisiv600-linux/target/usr/include/stdc-predef.h:
+
+../../config.h:
+
+MurmurHash2.h:
+
+/opt/hisi-linux/x86-arm/arm-hisiv600-linux/lib/gcc/arm-hisiv600-linux-gnueabi/4.9.4/include/stdint.h:
+
+/opt/hisi-linux/x86-arm/arm-hisiv600-linux/target/usr/include/stdint.h:
+
+/opt/hisi-linux/x86-arm/arm-hisiv600-linux/target/usr/include/features.h:
+
+/opt/hisi-linux/x86-arm/arm-hisiv600-linux/target/usr/include/sys/cdefs.h:
+
+/opt/hisi-linux/x86-arm/arm-hisiv600-linux/target/usr/include/bits/wordsize.h:
+
+/opt/hisi-linux/x86-arm/arm-hisiv600-linux/target/usr/include/gnu/stubs.h:
+
+/opt/hisi-linux/x86-arm/arm-hisiv600-linux/target/usr/include/gnu/stubs-soft.h:
+
+/opt/hisi-linux/x86-arm/arm-hisiv600-linux/target/usr/include/bits/wchar.h:
