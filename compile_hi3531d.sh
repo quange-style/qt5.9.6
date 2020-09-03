@@ -4,7 +4,7 @@
 
 #default compile paramter
 #
-./configure --prefix=$PWD/../qt5.9.6 -confirm-license -opensource -release -shared -no-static -make libs -gui -widgets -xplatform linux-hisiv600-g++  -optimized-qmake -pch -no-sql-sqlite  -system-freetype -system-libjpeg -libudev  -no-zlib -no-gif -no-libjpeg -qt-freetype -no-xinput2 -no-pulseaudio  -no-alsa -no-icu -tslib -linuxfb -no-egl -no-eglfs -no-opengl -no-sse2 -no-openssl -no-cups -no-alsa -no-glib -no-dbus -no-xcb  -no-qml-debug   -no-separate-debug-info -nomake examples -nomake tools -nomake tests -no-iconv -I$PWD/../tslib/include -I$PWD/../eudev-3.2.5/hi3531d_build/include  -L$PWD/../tslib/lib  -L$PWD/../eudev-3.2.5/hi3531d_build/lib LIBUDEV_LIBS="-ludev" 
+./configure --prefix=$PWD/../qt5.9.6 -confirm-license -opensource -release -shared -no-static -make libs -gui -widgets -xplatform linux-hisiv600-g++  -optimized-qmake -pch -no-sql-sqlite  -system-freetype -system-libjpeg -libudev  -no-zlib -gif -no-libjpeg -qt-freetype -no-xinput2 -no-pulseaudio  -no-alsa -no-icu -tslib -linuxfb -no-egl -no-eglfs -no-opengl -no-sse2 -no-openssl -no-cups -no-alsa -no-glib -no-dbus -no-xcb  -no-qml-debug   -no-separate-debug-info -nomake examples -nomake tools -nomake tests -no-iconv -I$PWD/../tslib/include -I$PWD/../eudev-3.2.5/hi3531d_build/include  -L$PWD/../tslib/lib  -L$PWD/../eudev-3.2.5/hi3531d_build/lib LIBUDEV_LIBS="-ludev" 
 
 #make -j 8
 #defalut compile paramter with skip
