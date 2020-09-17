@@ -43,6 +43,9 @@
 #include <QtCore/QFile>
 #include <QtCore/QRegularExpression>
 #include <QtGui/QPainter>
+#include <QDateTime>
+#include "QtFbSupport/private/qfbbackingstore_p.h"
+
 
 #include <private/qcore_unix_p.h> // overrides QT_OPEN
 #include <qimage.h>
@@ -62,8 +65,13 @@
 #include <signal.h>
 
 #include <linux/fb.h>
+#include <QLoggingCategory>
+
 
 QT_BEGIN_NAMESPACE
+
+Q_LOGGING_CATEGORY(qLcFblinux, "qt.qpa.fb")
+
 
 static int openFramebufferDevice(const QString &dev)
 {
@@ -287,7 +295,7 @@ static void blankScreen(int fd, bool on)
 }
 
 QLinuxFbScreen::QLinuxFbScreen(const QStringList &args)
-    : mArgs(args), mFbFd(-1), mTtyFd(-1), mBlitter(0)
+    : mArgs(args), mFbFd(-1), mTtyFd(-1), mBlitter(0),mPainter1(nullptr)
 {
     mMmap.data = 0;
 }
@@ -304,6 +312,7 @@ QLinuxFbScreen::~QLinuxFbScreen()
         resetTty(mTtyFd, mOldTtyMode);
 
     delete mBlitter;
+	delete mPainter1;
 }
 
 bool QLinuxFbScreen::initialize()
@@ -402,10 +411,80 @@ bool QLinuxFbScreen::initialize()
     return true;
 }
 
+void QLinuxFbScreen::setGeometry(const QRect &rect)
+{
+    delete mPainter1;
+    mPainter1 = nullptr;
+   	QFbScreen::setGeometry(rect);
+}
+
+
+QRegion QLinuxFbScreen::doRedraw1()
+{
+    const QPoint screenOffset = mGeometry.topLeft();
+
+    QRegion touchedRegion;
+    if (mCursor && mCursor->isDirty() && mCursor->isOnScreen()) {
+        const QRect lastCursor = mCursor->dirtyRect();
+        mRepaintRegion += lastCursor;
+    }
+    if (mRepaintRegion.isEmpty() && (!mCursor || !mCursor->isDirty()))
+        return touchedRegion;
+
+    if (!mPainter1)
+        mPainter1 = new QPainter(&mScreenImage);
+
+    const QVector<QRect> rects = mRepaintRegion.rects();
+    const QRect screenRect = mGeometry.translated(-screenOffset);
+
+	
+	//qCDebug(qLcFblinux) << "doRedraw1 before time" <<QDateTime::currentDateTime();
+    for (int rectIndex = 0; rectIndex < mRepaintRegion.rectCount(); rectIndex++) {
+        const QRect rect = rects[rectIndex].intersected(screenRect);
+        if (rect.isEmpty())
+            continue;
+
+        mPainter1->setCompositionMode(QPainter::CompositionMode_Source);
+        mPainter1->fillRect(rect, mScreenImage.hasAlphaChannel() ? Qt::transparent : Qt::black);
+
+        for (int layerIndex = mWindowStack.size() - 1; layerIndex != -1; layerIndex--) {
+            if (!mWindowStack[layerIndex]->window()->isVisible())
+                continue;
+
+            const QRect windowRect = mWindowStack[layerIndex]->geometry().translated(-screenOffset);
+            const QRect windowIntersect = rect.translated(-windowRect.left(), -windowRect.top());
+            QFbBackingStore *backingStore = mWindowStack[layerIndex]->backingStore();
+            if (backingStore) {
+                backingStore->lock();
+
+				if(rect==windowIntersect && mScreenImage.byteCount()==backingStore->image().byteCount()
+					&&  rect.width()>500 && rect.height()>300)
+					memcpy(mScreenImage.bits(),backingStore->image().constBits(),mScreenImage.byteCount());
+                else 
+					mPainter1->drawImage(rect, backingStore->image(), windowIntersect);
+                backingStore->unlock();
+            }
+        }
+    }
+
+	
+	//qCDebug(qLcFblinux) << "doRedraw1 end time" <<QDateTime::currentDateTime();
+
+    if (mCursor && (mCursor->isDirty() || mRepaintRegion.intersects(mCursor->lastPainted()))) {
+        mPainter1->setCompositionMode(QPainter::CompositionMode_SourceOver);
+        touchedRegion += mCursor->drawCursor(*mPainter1);
+    }
+    touchedRegion += mRepaintRegion;
+    mRepaintRegion = QRegion();
+
+    return touchedRegion;
+}
+
+
 QRegion QLinuxFbScreen::doRedraw()
 {
-    QRegion touched = QFbScreen::doRedraw();
-
+    //QRegion touched = QFbScreen::doRedraw();
+    QRegion touched =doRedraw1();
     if (touched.isEmpty())
         return touched;
 
@@ -413,11 +492,22 @@ QRegion QLinuxFbScreen::doRedraw()
         mBlitter = new QPainter(&mFbScreenImage);
 
     mBlitter->setCompositionMode(QPainter::CompositionMode_Source);
-    for (const QRect &rect : touched)
-        mBlitter->drawImage(rect, mScreenImage, rect);
-
+	for (const QRect &rect : touched)
+	{
 	
+		//qCDebug(qLcFblinux) << "doRedraw before" << rect <<"time:"<<QDateTime::currentDateTime();
 
+		
+
+		if( mScreenImage.byteCount()==mScreenImage.byteCount()
+					&&  rect.width()>500 && rect.height()>300)
+			memcpy(mFbScreenImage.bits(),mScreenImage.constBits(),mScreenImage.byteCount());
+        else 
+			mBlitter->drawImage(rect, mScreenImage, rect);
+
+		//qCDebug(qLcFblinux) << "doRedraw" << rect <<"time:"<<QDateTime::currentDateTime();
+	}
+	   
     return touched;
 }
 
