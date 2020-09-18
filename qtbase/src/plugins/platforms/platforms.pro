@@ -34,7 +34,11 @@ qtConfig(directfb) {
     SUBDIRS += directfb
 }
 
-qtConfig(linuxfb): SUBDIRS += linuxfb
+qtConfig(linuxfb){
+	SUBDIRS += linuxfb
+	SUBDIRS += QtLinuxHifb 
+
+}
 
 qtHaveModule(network):qtConfig(vnc): SUBDIRS += vnc
 
