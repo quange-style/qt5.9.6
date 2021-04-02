@@ -158,7 +158,7 @@ void QLinuxFbIntegration::createInputHandlers()
 #endif
 
 #if QT_CONFIG(evdev)
-    new QEvdevKeyboardManager(QLatin1String("EvdevKeyboard"), QString(), this);
+    //new QEvdevKeyboardManager(QLatin1String("EvdevKeyboard"), QString(), this);
     new QEvdevMouseManager(QLatin1String("EvdevMouse"), QString(), this);
 #if QT_CONFIG(tslib)
     if (!useTslib)
