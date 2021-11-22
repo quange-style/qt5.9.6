@@ -62,6 +62,9 @@ QT_BEGIN_NAMESPACE
 
 
 #define UNIQUE_KEYBOARD_NAME  "AUTAXIN AUTAXIN Wireless Device"
+#define UNIQUE_KEYBOARD_NAME1  "  AirMouse"
+
+
 
 Q_LOGGING_CATEGORY(qLcEvdevKey, "qt.qpa.input")
 Q_LOGGING_CATEGORY(qLcEvdevKeyMap, "qt.qpa.input.keymap")
@@ -80,7 +83,7 @@ QEvdevKeyboardHandler::QEvdevKeyboardHandler(const QString &device, QFdContainer
     : m_device(device), m_fd(fd.release()), m_notify(Q_NULLPTR),
       m_modifiers(0), m_composing(0), m_dead_unicode(0xffff),
       m_no_zap(disableZap), m_do_compose(enableCompose),
-      m_keymap(0), m_keymap_size(0), m_keycompose(0), m_keycompose_size(0)
+      m_keymap(0), m_keymap_size(0), m_keycompose(0), m_keycompose_size(0),isLocalUsbKeyboard(false)
 {
     qCDebug(qLcEvdevKey) << "Create keyboard handler with for device" << device;
 
@@ -160,9 +163,103 @@ void QEvdevKeyboardHandler::switchLed(int led, bool state)
     qt_safe_write(m_fd.get(), &led_ie, sizeof(led_ie));
 }
 
+// 0000 0000 0000 0000  0000 0000 0000 0001
+// 0000 0002 code 0003 0000 0000 0000 0004
+// 0000 0000 0000 0005 type 0006  value
+// 0000 0000 0000 0007 0000 0000 0000 0008
+// 0000 0000 0000 0009
+ struct input_event_local {
+	long long int  unuse0;
+	long long int unuse1;
+	__u32     unuse2;
+	__u16 	  code;
+	__u16	  unuse3;
+	long long int  unuse4;
+	long long int  unuse5;
+	__u16 type;
+	__u16	  unuse6;
+	__s32 value;
+	long long int  unuse7;
+	long long int  unuse8;
+	long long int  unuse9;
+};
+
+void QEvdevKeyboardHandler::readKeycodeLocal()
+{
+	struct input_event_local buffer[8];
+
+    int n = 0;
+
+    forever {
+        int result = qt_safe_read(m_fd.get(), reinterpret_cast<char *>(buffer) + n, sizeof(buffer) - n);
+
+        if (result == 0) {
+            qWarning("evdevkeyboard: Got EOF from the input device");
+            return;
+        } else if (result < 0) {
+            if (errno != EINTR && errno != EAGAIN) {
+                qErrnoWarning(errno, "evdevkeyboard: Could not read from input device");
+                // If the device got disconnected, stop reading, otherwise we get flooded
+                // by the above error over and over again.
+                if (errno == ENODEV) {
+                    delete m_notify;
+                    m_notify = Q_NULLPTR;
+                    m_fd.reset();
+                }
+                return;
+            }
+        } else {
+            n += result;
+            if (n % sizeof(buffer[0]) == 0)
+                break;
+        }
+    }
+
+    n /= sizeof(buffer[0]);
+
+    for (int i = 0; i < n; ++i) {
+        if (buffer[i].type != EV_KEY)
+            continue;
+
+        quint16 code = buffer[i].code;
+        qint32 value = buffer[i].value;
+
+        //qCDebug(qLcEvdevKey, "code=%d ", code);
+
+        QEvdevKeyboardHandler::KeycodeAction ka;
+        ka = processKeycode(code, value != 0, value == 2);
+
+        switch (ka) {
+        case QEvdevKeyboardHandler::CapsLockOn:
+        case QEvdevKeyboardHandler::CapsLockOff:
+            switchLed(LED_CAPSL, ka == QEvdevKeyboardHandler::CapsLockOn);
+            break;
+
+        case QEvdevKeyboardHandler::NumLockOn:
+        case QEvdevKeyboardHandler::NumLockOff:
+            switchLed(LED_NUML, ka == QEvdevKeyboardHandler::NumLockOn);
+            break;
+
+        case QEvdevKeyboardHandler::ScrollLockOn:
+        case QEvdevKeyboardHandler::ScrollLockOff:
+            switchLed(LED_SCROLLL, ka == QEvdevKeyboardHandler::ScrollLockOn);
+            break;
+
+        default:
+            // ignore console switching and reboot
+            break;
+        }
+    }
+}
+
+
 void QEvdevKeyboardHandler::readKeycode()
 {
-    struct ::input_event buffer[32];
+	if(isLocalUsbKeyboard){
+		return readKeycodeLocal();
+	}
+
+	struct ::input_event buffer[32];
     int n = 0;
 
     forever {
@@ -530,10 +627,25 @@ bool QEvdevKeyboardHandler::loadKeymap(const QString &file)
     }
 	QString qstr_name=QString::fromUtf8(name,strlen(name));
 
-	if(qstr_name.compare(UNIQUE_KEYBOARD_NAME)!=0){
+	bool isCheckNameSuccess=false;
+
+	if(qstr_name.compare(UNIQUE_KEYBOARD_NAME)==0){
+		isCheckNameSuccess=true;
+	}
+
+
+	if(qstr_name.compare(UNIQUE_KEYBOARD_NAME1)==0){
+		isCheckNameSuccess=true;
+		isLocalUsbKeyboard=true;
+
+        qCDebug(qLcEvdevKey, "compare device name: %s success", UNIQUE_KEYBOARD_NAME1);
+	}
+
+	if(!isCheckNameSuccess){
 		 qWarning("'%s' is not unique", name);
        	 return false;
 	}
+
 
     // .qmap files have a very simple structure:
     // quint32 magic           (QKeyboard::FileMagic)

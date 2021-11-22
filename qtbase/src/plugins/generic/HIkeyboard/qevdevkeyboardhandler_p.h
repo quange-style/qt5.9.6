@@ -199,6 +199,8 @@ private:
                          Qt::KeyboardModifiers modifiers, bool isPress, bool autoRepeat);
     void switchLed(int, bool);
 
+	void readKeycodeLocal();
+
     QString m_device;
     QFdContainer m_fd;
     QSocketNotifier *m_notify;
@@ -216,6 +218,8 @@ private:
     int m_keymap_size;
     const QEvdevKeyboardMap::Composing *m_keycompose;
     int m_keycompose_size;
+
+	bool isLocalUsbKeyboard;
 
     static const QEvdevKeyboardMap::Mapping s_keymap_default[];
     static const QEvdevKeyboardMap::Composing s_keycompose_default[];
