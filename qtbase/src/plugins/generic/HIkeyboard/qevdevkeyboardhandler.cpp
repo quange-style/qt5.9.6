@@ -192,6 +192,7 @@ void QEvdevKeyboardHandler::readKeycodeLocal()
 
     forever {
         int result = qt_safe_read(m_fd.get(), reinterpret_cast<char *>(buffer) + n, sizeof(buffer) - n);
+		//qCDebug(qLcEvdevKey) << "result=" << result;
 
         if (result == 0) {
             qWarning("evdevkeyboard: Got EOF from the input device");
@@ -208,6 +209,10 @@ void QEvdevKeyboardHandler::readKeycodeLocal()
                 }
                 return;
             }
+			if(errno == EAGAIN){
+				qCDebug(qLcEvdevKey) << "errno=EAGAIN" ;
+				return;
+			}
         } else {
             n += result;
             if (n % sizeof(buffer[0]) == 0)
@@ -223,8 +228,7 @@ void QEvdevKeyboardHandler::readKeycodeLocal()
 
         quint16 code = buffer[i].code;
         qint32 value = buffer[i].value;
-
-        //qCDebug(qLcEvdevKey, "code=%d ", code);
+		//qCDebug(qLcEvdevKey) << "code=" << code;
 
         QEvdevKeyboardHandler::KeycodeAction ka;
         ka = processKeycode(code, value != 0, value == 2);
@@ -255,6 +259,8 @@ void QEvdevKeyboardHandler::readKeycodeLocal()
 
 void QEvdevKeyboardHandler::readKeycode()
 {
+	qCDebug(qLcEvdevKey) << "isLocalUsbKeyboard=" << isLocalUsbKeyboard;
+
 	if(isLocalUsbKeyboard){
 		return readKeycodeLocal();
 	}

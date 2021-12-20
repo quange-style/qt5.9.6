@@ -369,6 +369,11 @@ public:
     void updateCursorBlinking();
     void resetCursorBlinkTimer();
 
+//wcq add 2021-12-20
+	void setCursorBlinkPeriod(int value){resetCursorBlinkTimer();}
+	void setCursorBlinkEnabled(bool enable){setBlinkingCursorEnabled(enable);}
+/////
+
     bool cursorBlinkStatus() const { return m_blinkStatus; }
 
     QString cancelText() const { return m_cancelText; }

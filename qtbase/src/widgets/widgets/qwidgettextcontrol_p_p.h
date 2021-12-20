@@ -116,7 +116,8 @@ public:
     void _q_contentsChanged(int from, int charsRemoved, int charsAdded);
 
     void setCursorVisible(bool visible);
-    void setBlinkingCursorEnabled(bool enable);
+    //void setBlinkingCursorEnabled(bool enable);
+    void setBlinkingCursorEnabled(bool enable){return ;}
     void updateCursorBlinking();
 
     void extendWordwiseSelection(int suggestedNewPosition, qreal mouseXPosition);
