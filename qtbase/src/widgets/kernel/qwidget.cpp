@@ -12108,6 +12108,9 @@ QWidget *QWidgetPrivate::widgetInNavigationDirection(Direction direction)
 
     QWidget *targetWidget = 0;
     int shortestDistance = INT_MAX;
+    int shortestYDistance = INT_MAX;
+    int shortestXDistance = INT_MAX;
+
 
     const auto targetCandidates = QApplication::allWidgets();
     for (QWidget *targetCandidate : targetCandidates) {
@@ -12138,13 +12141,31 @@ QWidget *QWidgetPrivate::widgetInNavigationDirection(Direction direction)
                 && targetCandidate->isVisible()
                    // ...is in the same window,
                 && targetCandidate->window() == sourceWindow) {
-            const int targetCandidateDistance = pointToRect(sourcePoint, targetCandidateRect);
-            if (targetCandidateDistance < shortestDistance) {
-                shortestDistance = targetCandidateDistance;
-                targetWidget = targetCandidate;
-            }
+
+				if(direction == DirectionEast || direction ==DirectionWest){//serach min Y distance
+					QPoint pointDistance=sourcePoint-targetCandidateRect.center();
+					 const int targetCandidateY =qAbs(pointDistance.y());
+					 const int targetCandidateX =qAbs(pointDistance.x());
+		            if ((targetCandidateY < shortestYDistance)
+						|| (targetCandidateY == shortestYDistance && targetCandidateX <shortestXDistance)) {
+		                shortestYDistance = targetCandidateY;
+						shortestXDistance = targetCandidateX;
+		                targetWidget = targetCandidate;
+		            }
+				}
+				else {
+					 const int targetCandidateDistance = pointToRect(sourcePoint, targetCandidateRect);
+		            if (targetCandidateDistance < shortestDistance) {
+		                shortestDistance = targetCandidateDistance;
+		                targetWidget = targetCandidate;
+		            }
+				}
+
         }
     }
+
+
+
     return targetWidget;
 }
 
