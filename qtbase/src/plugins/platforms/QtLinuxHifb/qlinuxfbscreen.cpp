@@ -43,6 +43,8 @@
 #include <QtCore/QFile>
 #include <QtCore/QRegularExpression>
 #include <QtGui/QPainter>
+#include <QtGui/private/qimage_p.h>
+
 #include <QDateTime>
 #include "QtFbSupport/private/qfbbackingstore_p.h"
 
@@ -63,10 +65,18 @@
 #include <stdio.h>
 #include <limits.h>
 #include <signal.h>
+#include<string.h>
+
 
 #include <linux/fb.h>
 #include <QLoggingCategory>
 
+#include "hi_api/securec.h"
+#include "hi_api/hifb.h"
+
+#include "hi_api/hi_type.h"
+#include "hi_api/hi_mpi_tde.h"
+#include "hi_api/hi_mpi_sys.h"
 
 QT_BEGIN_NAMESPACE
 
@@ -298,10 +308,15 @@ QLinuxFbScreen::QLinuxFbScreen(const QStringList &args)
     : mArgs(args), mFbFd(-1), mTtyFd(-1), mBlitter(0),mPainter1(nullptr)
 {
     mMmap.data = 0;
+	
+	hi_tde_open();
 }
 
 QLinuxFbScreen::~QLinuxFbScreen()
 {
+
+	hi_tde_close();
+
     if (mFbFd != -1) {
         if (mMmap.data)
             munmap(mMmap.data - mMmap.offset, mMmap.size);
@@ -431,8 +446,11 @@ QRegion QLinuxFbScreen::doRedraw1()
     if (mRepaintRegion.isEmpty() && (!mCursor || !mCursor->isDirty()))
         return touchedRegion;
 
-    if (!mPainter1)
-        mPainter1 = new QPainter(&mScreenImage);
+    if (!mPainter1){
+		
+		qImageCacheMap();
+		mPainter1 = new QPainter(&mScreenImage);
+	}
 
     const QVector<QRect> rects = mRepaintRegion.rects();
     const QRect screenRect = mGeometry.translated(-screenOffset);
@@ -443,6 +461,7 @@ QRegion QLinuxFbScreen::doRedraw1()
         const QRect rect = rects[rectIndex].intersected(screenRect);
         if (rect.isEmpty())
             continue;
+
 
         mPainter1->setCompositionMode(QPainter::CompositionMode_Source);
         mPainter1->fillRect(rect, mScreenImage.hasAlphaChannel() ? Qt::transparent : Qt::black);
@@ -456,9 +475,13 @@ QRegion QLinuxFbScreen::doRedraw1()
             QFbBackingStore *backingStore = mWindowStack[layerIndex]->backingStore();
             if (backingStore) {
                 backingStore->lock();
+				
+				QImageData * QtPic = mScreenImage.data_ptr();
+				//hi_mpi_sys_flush_cache(mScreenImagePhy, (QtPic->data),mScreenImage.byteCount());
 
+				//if (false) //待优化地方，可能也会导致键盘消失
 				if(rect==windowIntersect && mScreenImage.byteCount()==backingStore->image().byteCount()
-					&&  rect.width()>500 && rect.height()>300)
+					&&  rect.width()>500 && rect.height()>300)				
 					memcpy(mScreenImage.bits(),backingStore->image().constBits(),mScreenImage.byteCount());
                 else 
 					mPainter1->drawImage(rect, backingStore->image(), windowIntersect);
@@ -481,7 +504,47 @@ QRegion QLinuxFbScreen::doRedraw1()
 }
 
 
-QRegion QLinuxFbScreen::doRedraw()
+bool QLinuxFbScreen::qImageCacheMap()
+{
+
+#if 1
+	//使用带cache的mmz内存提高buffer的存取效率。
+	//给Qt绘制的位图buffer（虚拟地址）申请一块物理地址 图像格式ARGB8888
+    QImageData * QtPic = mScreenImage.data_ptr();
+	hi_s32 ret;
+	uchar *data=QtPic->data;	
+	//qCDebug(qLcFblinux) << "before  free "<<data ;
+	//QFbScreen::setComposite();	
+	free(data);
+	ret=hi_mpi_sys_mmz_alloc_cached(&mScreenImagePhy,((void**)&(QtPic->data)),
+											NULL, NULL,mScreenImage.byteCount() );
+	if (HI_SUCCESS !=ret )
+	{	
+		qCDebug(qLcFblinux) << "mScreenImagePhy allocate memory (maxW*maxH*2 bytes) failed" ;
+		return false;
+	}
+
+											
+	//qCDebug(qLcFblinux) << "QtPic->data="<<QtPic->data<< "ret="<<ret<< "mScreenImagePhy="<<hex<<mScreenImagePhy ;
+//给hifb的画布buffer申请一块物理内存 图像格式ARGB8888
+
+	ret= hi_mpi_sys_mmz_alloc_cached(&g_CanvasAddr, ((void**)&g_CanvasVirtAddr),
+									  NULL, NULL, mScreenImage.byteCount());
+	if (HI_SUCCESS !=ret )
+	{	
+		qCDebug(qLcFblinux) << "mScreenImagePhy allocate memory (maxW*maxH*2 bytes) failed" ;
+		return false;
+	}
+	
+	//qCDebug(qLcFblinux) << "g_CanvasVirtAddr="<<g_CanvasVirtAddr<< "ret="<<ret<< "g_CanvasAddr="<<hex<<g_CanvasAddr ;
+	//qCDebug(qLcFblinux) << "qImageCacheMap success g_CanvasAddr size="<<mScreenImage.byteCount() ;
+
+#endif 
+	return true;
+}
+
+//原来的绘画加速（size>(500,300)）直接绘画
+QRegion QLinuxFbScreen::doRedraw2()
 {
     //QRegion touched = QFbScreen::doRedraw();
     QRegion touched =doRedraw1();
@@ -497,7 +560,8 @@ QRegion QLinuxFbScreen::doRedraw()
 	
 		//qCDebug(qLcFblinux) << "doRedraw before" << rect <<"time:"<<QDateTime::currentDateTime();
 
-		
+		QImageData * QtPic = mScreenImage.data_ptr();
+		hi_mpi_sys_flush_cache(mScreenImagePhy, (QtPic->data),mScreenImage.byteCount());
 
 		if( mScreenImage.byteCount()==mScreenImage.byteCount()
 					&&  rect.width()>500 && rect.height()>300)
@@ -510,6 +574,172 @@ QRegion QLinuxFbScreen::doRedraw()
 	   
     return touched;
 }
+
+//新的基于cache &    tde  & hifb 绘画加速
+QRegion QLinuxFbScreen::doRedraw()
+{
+	//return doRedraw2();
+
+#if 1
+    QRegion touched =doRedraw1();
+
+    hi_tde_rect stSrcRect, stDstRect;
+    hi_tde_surface stSrc={0}, stDst={0};	
+    hi_s32 s32Ret;
+    hi_u32 u32HideScreenPhy = 0;
+	hi_u32 u32showScreenPhy = 0;
+    hi_u32 u32FixScreenStride = 0;
+    hi_s32 s32Handle;
+    hi_fb_buf stCanvasBuf;
+
+	struct timeval start;
+	struct timeval end;
+    if (touched.isEmpty())
+        return touched;
+
+	QImageData * QtPic = mScreenImage.data_ptr();
+
+    fb_var_screeninfo vinfo;
+    fb_fix_screeninfo fix;
+	
+    if (ioctl(mFbFd, FBIOGET_FSCREENINFO, &fix) != 0) {
+        qErrnoWarning(errno, "Error reading fixed information");
+    }
+	if (ioctl(mFbFd, FBIOGET_VSCREENINFO, &vinfo)) {
+		qErrnoWarning(errno, "Error reading variable information");
+	}	
+    stCanvasBuf.canvas.phys_addr = g_CanvasAddr;
+    stCanvasBuf.canvas.height = vinfo.yres;
+    stCanvasBuf.canvas.width = vinfo.xres;
+
+	stCanvasBuf.canvas.pitch = vinfo.xres * 4;
+	stCanvasBuf.canvas.format = HI_FB_FORMAT_ARGB8888;
+
+	//printf("vinfo.yres =%d xres=%d  \n",vinfo.yres, vinfo.xres);
+	int i=0;
+
+	hi_mpi_sys_flush_cache(mScreenImagePhy, (QtPic->data),mScreenImage.byteCount());
+
+	for (const QRect &rect : touched)
+	{
+		int x,y,w,h;
+		rect.getRect(&x,&y,&w,&h);
+
+		s32Ret = ioctl(mFbFd, FBIOGET_VER_BLANK_HIFB);
+
+
+		s32Handle = hi_tde_begin_job();
+
+		if (HI_ERR_TDE_INVALID_HANDLE == s32Handle)
+		{
+			qCDebug(qLcFblinux) << "hi_tde_begin_job failed,ret=0x%x!"<<s32Ret ;
+			hi_mpi_sys_mmz_free(mScreenImagePhy, QtPic->data);
+			mScreenImagePhy = 0;		
+			hi_mpi_sys_mmz_free(g_CanvasAddr, g_CanvasVirtAddr);
+			g_CanvasAddr = 0;
+			close(mFbFd);
+		}	
+		
+	//开启TDE快速位图缩放任务，支持位图从src到dst进行缩放，图像格式转换
+
+		/* 0. open tde */
+		stSrcRect.pos_x = x;
+		stSrcRect.pos_y = y;
+		stSrcRect.height = h;
+		stSrcRect.width = w;
+
+		stDstRect.pos_x = x;
+		stDstRect.pos_y = y;
+		stDstRect.height = h;
+		stDstRect.width = w;
+		
+		stDst.color_format = HI_TDE_COLOR_FORMAT_ARGB8888;
+		stDst.stride = vinfo.xres*4;
+		stDst.width = vinfo.xres;
+		stDst.height = vinfo.yres;
+		stDst.phys_addr = stCanvasBuf.canvas.phys_addr;
+
+
+		stSrc.color_format = HI_TDE_COLOR_FORMAT_ARGB8888;
+		stSrc.stride = vinfo.xres*4;
+		stSrc.width = vinfo.xres;
+		stSrc.height = vinfo.yres;
+		stSrc.phys_addr = mScreenImagePhy;
+		stSrc.support_alpha_ex_1555 = HI_TRUE;
+		stSrc.alpha_max_is_255 = HI_TRUE;
+		stSrc.alpha0 = 0XFF;
+		stSrc.alpha1 = 0XFF;
+		
+
+
+		hi_tde_single_src stTdeSrc;
+
+		stTdeSrc.src_rect=&stSrcRect;
+		stTdeSrc.dst_rect=&stDstRect;
+
+		stTdeSrc.src_surface=&stSrc;
+		stTdeSrc.dst_surface=&stDst;
+
+		//i++;
+		//printf("src phy_add =0x%x dst phy_add =0x%x i=%d\n",stTdeSrc.src_surface->phys_addr,stTdeSrc.dst_surface->phys_addr ,i);
+		//printf("src w =%d dst w =%d\n",stTdeSrc.src_surface->width,stTdeSrc.dst_surface->width );
+		//printf("src h =%d dst h =%d\n",stTdeSrc.src_surface->height,stTdeSrc.dst_surface->height );
+
+
+		//printf("src rect w =%d dst rect w =%d\n",stTdeSrc.src_rect->width,stTdeSrc.dst_rect->width );
+		//printf("src rect h =%d dst rect h =%d\n",stTdeSrc.src_rect->height,stTdeSrc.dst_rect->height );
+
+		s32Ret =hi_tde_quick_copy(s32Handle,&stTdeSrc);
+		if (s32Ret < 0)
+		{
+			hi_tde_cancel_job(s32Handle);
+			
+			//printf("hi_tde_quick_copy failed,ret=0x%x\n",s32Ret );
+			qCDebug(qLcFblinux) << "hi_tde_quick_copy failed,ret=0x%x!"<<hex<<s32Ret ;
+			hi_mpi_sys_mmz_free(mScreenImagePhy, QtPic->data);
+			mScreenImagePhy = 0;		
+			hi_mpi_sys_mmz_free(g_CanvasAddr, g_CanvasVirtAddr);
+			g_CanvasAddr = 0;
+			close(mFbFd);
+		}
+		
+		/* 3. submit job */
+
+		s32Ret = hi_tde_end_job(s32Handle, HI_FALSE, HI_TRUE, 20);
+		if(s32Ret < 0)
+		{
+			hi_tde_cancel_job(s32Handle);		
+			qCDebug(qLcFblinux) << "hi_tde_end_job failed,ret=0x%x!"<<s32Ret ;
+			hi_mpi_sys_mmz_free(mScreenImagePhy, QtPic->data);
+			mScreenImagePhy = 0;		
+			hi_mpi_sys_mmz_free(g_CanvasAddr, g_CanvasVirtAddr);
+			g_CanvasAddr = 0;
+			close(mFbFd);		
+		}
+		
+
+	//设置当前画布的大小	
+		stCanvasBuf.update_rect.x = x;
+		stCanvasBuf.update_rect.y = y;
+		stCanvasBuf.update_rect.width = w;
+		stCanvasBuf.update_rect.height = h;
+		hi_mpi_sys_flush_cache(g_CanvasAddr, (void*)g_CanvasVirtAddr,mScreenImage.byteCount());
+
+		
+		//qCDebug(qLcFblinux) << "hi_mpi_sys_flush_cache g_CanvasVirtAddr" ;
+		s32Ret = ioctl(mFbFd, FBIO_REFRESH, &stCanvasBuf);
+		//qCDebug(qLcFblinux) << "FBIO_REFRESH" ;
+	
+	}
+
+	
+	return touched;
+#endif 
+}
+
+
+
+
 
 // grabWindow() grabs "from the screen" not from the backingstores.
 // In linuxfb's case it will also include the mouse cursor.

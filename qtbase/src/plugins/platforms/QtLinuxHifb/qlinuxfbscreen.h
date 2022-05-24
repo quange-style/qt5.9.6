@@ -59,12 +59,19 @@ public:
     QPixmap grabWindow(WId wid, int x, int y, int width, int height) const override;
 
     QRegion doRedraw() override;
+	
+    QRegion doRedraw2() ;
 	QRegion doRedraw1();
 
 public slots:
     void setGeometry(const QRect &rect) ;
 
 private:
+	
+	bool qImageCacheMap();
+	unsigned long int mScreenImagePhy;
+	unsigned long int g_CanvasAddr;
+	void* g_CanvasVirtAddr;
     QStringList mArgs;
 	
     QPainter *mPainter1;

@@ -9,7 +9,6 @@ QT += \
     input_support-private 
 
 
-
 SOURCES = main.cpp \
           qlinuxfbintegration.cpp \
           qlinuxfbscreen.cpp
@@ -17,7 +16,19 @@ SOURCES = main.cpp \
 HEADERS = qlinuxfbintegration.h \
           qlinuxfbscreen.h
 
+#mpp api
+MPP_DIR=$$PWD/../../../../../../../../../HI3531D_SRC_GIT/HisonSDK/mpp_api_v2
+MPP_INC_PATH=$$MPP_DIR/include
+MPP_LIB_PATH=$$MPP_DIR/lib
 
+HI_LIB_PATH=$$MPP_DIR/hi_lib
+MPP_LIBS = -L$$MPP_LIB_PATH -lMppApi  -L$$HI_LIB_PATH -lmpi -lhdmi  -ltde -lVoiceEngine -lupvqe -ldnvqe    -lpthread -s -ldl -lm
+#MPP_LIBS = -L$$MPP_LIB_PATH -lMppApi  -L$$HI_LIB_PATH -lmpi -ltde -lhdmi       -lpthread -s -ldl -lm
+
+HI_INC_PATH=$$MPP_INC_PATH/hi_api
+
+INCLUDEPATH +=  $$HI_INC_PATH  $$MPP_INC_PATH 
+LIBS  +=$$MPP_LIBS
 
 OTHER_FILES += linuxhifb.json
 
